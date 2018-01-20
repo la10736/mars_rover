@@ -289,5 +289,14 @@ mod tests {
 
             assert_eq!(&Coordinate(7, 12), controller.rover().coord())
         }
+
+        #[test]
+        fn should_ignore_just_commands() {
+            let mut controller = controller(7, 12, Direction::S);
+
+            controller.send(['☙', '❣', 'f', 't']);
+
+            assert_eq!(&Coordinate(7, 11), controller.rover().coord())
+        }
     }
 }
