@@ -2,22 +2,22 @@
 extern crate log;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub enum Directions {
+pub enum Direction {
     N,
     S,
     E,
     W,
 }
 
-impl Default for Directions {
+impl Default for Direction {
     fn default() -> Self {
-        Directions::N
+        Direction::N
     }
 }
 
-impl Directions {
+impl Direction {
     fn reversed(&self) -> Self {
-        use Directions::*;
+        use Direction::*;
 
         match *self {
             N => S,
@@ -28,9 +28,9 @@ impl Directions {
     }
 }
 
-impl std::fmt::Display for Directions {
+impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use Directions::*;
+        use Direction::*;
 
         write!(f, "{}",
                match *self {
@@ -46,31 +46,31 @@ impl std::fmt::Display for Directions {
 pub type Position = i32;
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
-pub struct Coordinates(pub Position, pub Position);
+pub struct Coordinate(pub Position, pub Position);
 
-fn move_position(coord: &Coordinates, direction: &Directions) -> Coordinates {
-    use Directions::*;
+fn move_position(coord: &Coordinate, direction: &Direction) -> Coordinate {
+    use Direction::*;
 
     match *direction {
-        N => Coordinates(coord.0, coord.1 + 1),
-        S => Coordinates(coord.0, coord.1 - 1),
-        E => Coordinates(coord.0 + 1, coord.1),
-        W => Coordinates(coord.0 - 1, coord.1),
+        N => Coordinate(coord.0, coord.1 + 1),
+        S => Coordinate(coord.0, coord.1 - 1),
+        E => Coordinate(coord.0 + 1, coord.1),
+        W => Coordinate(coord.0 - 1, coord.1),
     }
 }
 
 #[derive(Debug)]
 pub struct Rover {
-    coord: Coordinates,
-    direction: Directions,
+    coord: Coordinate,
+    direction: Direction,
 }
 
 impl Rover {
-    pub fn coord(&self) -> &Coordinates {
+    pub fn coord(&self) -> &Coordinate {
         &self.coord
     }
 
-    pub fn direction(&self) -> &Directions {
+    pub fn direction(&self) -> &Direction {
         &self.direction
     }
 
@@ -107,16 +107,16 @@ impl std::fmt::Display for Command {
 /// # Examples
 ///
 /// ```
-/// use mars_rover::{RoverCharConsole, Coordinates};
+/// use mars_rover::{RoverCharConsole, Coordinate};
 ///
-/// # use mars_rover::{Lander, Directions};
-/// # let rover = Lander::new().coord(10, 3).direction(Directions::N).land();
+/// # use mars_rover::{Lander, Direction};
+/// # let rover = Lander::new().coord(10, 3).direction(Direction::N).land();
 ///
 /// let mut controller = RoverCharConsole::new(rover);
 ///
 /// controller.send(&['f', 'f', 'b', 'f']);
 ///
-/// assert_eq!(&Coordinates(10, 5), controller.rover().coord());
+/// assert_eq!(&Coordinate(10, 5), controller.rover().coord());
 /// ```
 ///
 pub struct RoverCharConsole {
@@ -152,26 +152,26 @@ impl From<Rover> for RoverCharConsole {
     }
 }
 
-/// Land the [Rover](struct.Rover.html) to configured [Coordinates](struct.Coordinates.html) and
-/// [Directions](enum.Directions.html)
+/// Land the [Rover](struct.Rover.html) to configured [Coordinate](struct.Coordinate.html) and
+/// [Direction](enum.Direction.html)
 ///
 /// # Examples
 ///
 /// ```
-/// use mars_rover::{Lander, Coordinates, Directions};
+/// use mars_rover::{Lander, Coordinate, Direction};
 ///
 /// let rover = Lander::new()
 ///         .coord(3, 4)
-///         .direction(Directions::N)
+///         .direction(Direction::N)
 ///         .land();
 ///
-/// assert_eq!(&Coordinates(3, 4), rover.coord());
-/// assert_eq!(&Directions::N, rover.direction());
+/// assert_eq!(&Coordinate(3, 4), rover.coord());
+/// assert_eq!(&Direction::N, rover.direction());
 /// ```
 #[derive(Default)]
 pub struct Lander {
-    coord: Coordinates,
-    direction: Directions,
+    coord: Coordinate,
+    direction: Direction,
 }
 
 impl Lander {
@@ -184,11 +184,11 @@ impl Lander {
     }
 
     pub fn coord(&mut self, x: Position, y: Position) -> &mut Self {
-        self.coord = Coordinates(x, y);
+        self.coord = Coordinate(x, y);
         self
     }
 
-    pub fn direction(&mut self, direction: Directions) -> &mut Self {
+    pub fn direction(&mut self, direction: Direction) -> &mut Self {
         self.direction = direction;
         self
     }
@@ -200,15 +200,15 @@ mod tests {
     use super::*;
 
     /// Useful syntactic sugar for testing
-    impl From<(Position, Position)> for Coordinates {
+    impl From<(Position, Position)> for Coordinate {
         fn from(c: (Position, Position)) -> Self {
-            Coordinates(c.0, c.1)
+            Coordinate(c.0, c.1)
         }
     }
 
     mod rover {
         use super::*;
-        use Directions::*;
+        use Direction::*;
 
         #[test]
         fn should_move_forward() {
@@ -226,7 +226,7 @@ mod tests {
 
                     rover.apply(cmd);
 
-                    assert_eq!(Coordinates::from(expected), rover.coord,
+                    assert_eq!(Coordinate::from(expected), rover.coord,
                                "Wrong destination != {:?} from [{:?}, {}] by apply {}", expected, p, d, cmd);
                     assert_eq!(d, rover.direction, "Apply {} should not change direction", cmd);
                 }
@@ -248,7 +248,7 @@ mod tests {
 
                     rover.apply(cmd);
 
-                    assert_eq!(Coordinates::from(expected), rover.coord,
+                    assert_eq!(Coordinate::from(expected), rover.coord,
                                "Wrong destination != {:?} from [{:?}, {}] by apply {}", expected, p, d, cmd);
                     assert_eq!(d, rover.direction, "Apply {} should not change direction", cmd);
                 }
@@ -260,22 +260,22 @@ mod tests {
 
         #[test]
         fn should_send_forward_command() {
-            let rover = Lander::new().coord(10, 3).direction(Directions::W).land();
+            let rover = Lander::new().coord(10, 3).direction(Direction::W).land();
             let mut controller: RoverCharConsole = rover.into();
 
             controller.send("f".chars().collect::<Vec<_>>());
 
-            assert_eq!(&Coordinates(9, 3), controller.rover().coord())
+            assert_eq!(&Coordinate(9, 3), controller.rover().coord())
         }
 
         #[test]
         fn should_send_backward_command() {
-            let rover = Lander::new().coord(7, 12).direction(Directions::S).land();
+            let rover = Lander::new().coord(7, 12).direction(Direction::S).land();
             let mut controller: RoverCharConsole = rover.into();
 
             controller.send("b".chars().collect::<Vec<_>>());
 
-            assert_eq!(&Coordinates(7, 13), controller.rover().coord())
+            assert_eq!(&Coordinate(7, 13), controller.rover().coord())
         }
     }
 }
