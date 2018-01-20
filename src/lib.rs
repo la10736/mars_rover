@@ -258,24 +258,36 @@ mod tests {
     mod rover_controller {
         use super::*;
 
+        fn controller(x: Position, y: Position, d: Direction) -> RoverCharConsole {
+            let rover = Lander::new().coord(x, y).direction(d).land();
+            rover.into()
+        }
+
         #[test]
         fn should_send_forward_command() {
-            let rover = Lander::new().coord(10, 3).direction(Direction::W).land();
-            let mut controller: RoverCharConsole = rover.into();
+            let mut controller = controller(10, 3, Direction::W);
 
-            controller.send("f".chars().collect::<Vec<_>>());
+            controller.send(&['f']);
 
             assert_eq!(&Coordinate(9, 3), controller.rover().coord())
         }
 
         #[test]
         fn should_send_backward_command() {
-            let rover = Lander::new().coord(7, 12).direction(Direction::S).land();
-            let mut controller: RoverCharConsole = rover.into();
+            let mut controller = controller(7, 12, Direction::S);
 
-            controller.send("b".chars().collect::<Vec<_>>());
+            controller.send(&['b']);
 
             assert_eq!(&Coordinate(7, 13), controller.rover().coord())
+        }
+
+        #[test]
+        fn should_ignore_unknown_commands() {
+            let mut controller = controller(7, 12, Direction::S);
+
+            controller.send(['a', '🎁']);
+
+            assert_eq!(&Coordinate(7, 12), controller.rover().coord())
         }
     }
 }
