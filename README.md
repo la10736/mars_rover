@@ -20,7 +20,7 @@ install toolchain and then `cargo` to compile, run test and produce docs (very l
 
 By the toolchain installed use
 
-* `cargo test` to run both unit test and doctest (that works also as integration tests)
+* `cargo test` to run both unit test and doctest (thats akts also as integration tests)
 * `cargo docs` to create the (limited) Documentation at `target/doc/mars_rover/index.html`
 
 Let me known if you have any issue...
