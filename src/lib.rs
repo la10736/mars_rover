@@ -166,23 +166,21 @@ impl<'a> Rover<'a> {
 
     fn apply(&mut self, cmd: Command) -> RoverResult {
         use Command::*;
-        let pos =
-            match cmd {
-                Forward => self.world.move_to(&self.coord, &self.direction),
-                Backward => self.world.move_to(&self.coord, &self.direction.reversed()),
-                _ => self.coord.clone()
-            };
-        if !self.world.is_free_cell(&pos) {
-            return Err(format!("Cannot move in {:?} on {:?}", pos, self.world))
-        }
-        self.coord = pos;
-        self.direction =
-            match cmd {
-                Right => self.direction.right(),
-                Left => self.direction.left(),
-                _ => self.direction
-            };
+        match cmd {
+            Forward => {self.coord = self.try_move(self.direction)?;},
+            Backward => {self.coord = self.try_move(self.direction.reversed())?;},
+            Right => {self.direction = self.direction.right()},
+            Left => {self.direction = self.direction.left()},
+        };
         Ok(())
+    }
+
+    fn try_move(&self, direction: Direction) -> Result<Coordinate, String> {
+        let coord = self.world.move_to(&self.coord, &direction);
+        match self.world.is_free_cell(&coord) {
+            true => Ok(coord),
+            false => Err(format!("Cannot move in {:?} on {:?}", coord, self.world))
+        }
     }
 }
 
