@@ -112,11 +112,19 @@ impl BoundedWorld {
     pub fn new(width: usize, height: usize) -> Self {
         Self { width: width as Position, height: height as Position }
     }
+
+    #[inline]
+    fn norm_position(pos: Position, bound: Position) -> Position {
+        (pos % bound + bound) % bound
+    }
 }
 
 impl World for BoundedWorld {
     fn normalize_coord(&self, coord: Coordinate) -> Coordinate {
-        Coordinate(coord.0 % self.width, coord.1 % self.height)
+        // Rust module is just a remainder
+        Coordinate(Self::norm_position(coord.0, self.width),
+                   Self::norm_position(coord.1, self.height)
+        )
     }
 }
 
@@ -456,6 +464,53 @@ mod tests {
             controller.send(['☙', '❣', 'f', 't']);
 
             assert_eq!(&Coordinate(7, 11), controller.rover().coord())
+        }
+    }
+
+    mod bounded_world {
+        use super::*;
+
+        static BOUNDED_WORLD: BoundedWorld = BoundedWorld {width: 6, height: 4};
+
+        fn controller(x: Position, y: Position, d: Direction) -> RoverCharConsole<'static> {
+            let rover = Lander::new().world(&BOUNDED_WORLD).coord(x, y).direction(d).land();
+            rover.into()
+        }
+
+        #[test]
+        fn should_wrapping_at_north_bound() {
+            let mut controller = controller(3, 2, Direction::N);
+
+            controller.send(&['f', 'f']);
+
+            assert_eq!(&Coordinate(3, 0), controller.rover().coord())
+        }
+
+        #[test]
+        fn should_wrapping_at_south_bound() {
+            let mut controller = controller(3, 2, Direction::S);
+
+            controller.send(&['f', 'f', 'f']);
+
+            assert_eq!(&Coordinate(3, 3), controller.rover().coord())
+        }
+
+        #[test]
+        fn should_wrapping_at_east_bound() {
+            let mut controller = controller(3, 2, Direction::E);
+
+            controller.send(&['f', 'f', 'f']);
+
+            assert_eq!(&Coordinate(0, 2), controller.rover().coord())
+        }
+
+        #[test]
+        fn should_wrapping_at_weast_bound() {
+            let mut controller = controller(3, 2, Direction::W);
+
+            controller.send(&['f', 'f', 'f', 'f']);
+
+            assert_eq!(&Coordinate(5, 2), controller.rover().coord())
         }
     }
 }
