@@ -135,6 +135,8 @@ pub struct Rover<'a> {
     world: Box<&'a World>,
 }
 
+type RoverResult = Result<(), String>;
+
 impl<'a> Rover<'a> {
     pub fn coord(&self) -> &Coordinate {
         &self.coord
@@ -144,7 +146,7 @@ impl<'a> Rover<'a> {
         &self.direction
     }
 
-    fn apply(&mut self, cmd: Command) {
+    fn apply(&mut self, cmd: Command) -> RoverResult{
         use Command::*;
         match cmd {
             Forward => { self.coord = self.world.move_to(&self.coord, &self.direction) }
@@ -152,6 +154,7 @@ impl<'a> Rover<'a> {
             Right => { self.direction = self.direction.right() }
             Left => { self.direction = self.direction.left() }
         }
+        Ok(())
     }
 }
 
@@ -204,7 +207,7 @@ impl<'a> RoverCharConsole<'a> {
         Self { rover }
     }
 
-    pub fn send<C: AsRef<[char]>>(&mut self, commands: C) {
+    pub fn send<C: AsRef<[char]>>(&mut self, commands: C) -> RoverResult{
         use Command::*;
 
         for c in commands.as_ref() {
@@ -214,9 +217,13 @@ impl<'a> RoverCharConsole<'a> {
                 'b' => self.rover.apply(Backward),
                 'r' => self.rover.apply(Right),
                 'l' => self.rover.apply(Left),
-                unknown => { warn!("Unknown char command '{}'", unknown) }
-            }
+                unknown => {
+                    warn!("Unknown char command '{}'", unknown);
+                    Ok(())
+                }
+            }?;
         }
+        Ok(())
     }
 
     pub fn rover(&self) -> &Rover {
@@ -333,7 +340,7 @@ mod tests {
                     let mut rover = Lander::new().coord(p.0, p.1).direction(d).land();
                     let cmd = Command::Forward;
 
-                    rover.apply(cmd);
+                    rover.apply(cmd).unwrap();
 
                     assert_eq!(Coordinate::from(expected), rover.coord,
                                "Wrong destination != {:?} from [{:?}, {}] by apply {}", expected, p, d, cmd);
@@ -355,7 +362,7 @@ mod tests {
                     let mut rover = Lander::new().coord(p.0, p.1).direction(d).land();
                     let cmd = Command::Backward;
 
-                    rover.apply(cmd);
+                    rover.apply(cmd).unwrap();
 
                     assert_eq!(Coordinate::from(expected), rover.coord,
                                "Wrong destination != {:?} from [{:?}, {}] by apply {}", expected, p, d, cmd);
@@ -376,7 +383,7 @@ mod tests {
                     let mut rover = Lander::new().coord(4, 5).direction(d).land();
                     let cmd = Command::Right;
 
-                    rover.apply(cmd);
+                    rover.apply(cmd).unwrap();
 
                     assert_eq!(expected, rover.direction,
                                "Wrong direction != {} from [{}] by apply {}", expected, d, cmd);
@@ -396,7 +403,7 @@ mod tests {
                     let mut rover = Lander::new().coord(4, 5).direction(d).land();
                     let cmd = Command::Left;
 
-                    rover.apply(cmd);
+                    rover.apply(cmd).unwrap();
 
                     assert_eq!(expected, rover.direction,
                                "Wrong direction != {} from [{}] by apply {}", expected, d, cmd);
@@ -416,7 +423,7 @@ mod tests {
         fn should_send_forward_command() {
             let mut controller = controller(10, 3, Direction::W);
 
-            controller.send(&['f']);
+            controller.send(&['f']).unwrap();
 
             assert_eq!(&Coordinate(9, 3), controller.rover().coord())
         }
@@ -425,7 +432,7 @@ mod tests {
         fn should_send_backward_command() {
             let mut controller = controller(7, 12, Direction::S);
 
-            controller.send(&['b']);
+            controller.send(&['b']).unwrap();
 
             assert_eq!(&Coordinate(7, 13), controller.rover().coord())
         }
@@ -434,7 +441,7 @@ mod tests {
         fn should_send_right_command() {
             let mut controller = controller(10, 3, Direction::W);
 
-            controller.send(&['r']);
+            controller.send(&['r']).unwrap();
 
             assert_eq!(&Direction::N, controller.rover().direction())
         }
@@ -443,7 +450,7 @@ mod tests {
         fn should_send_left_command() {
             let mut controller = controller(10, 3, Direction::S);
 
-            controller.send(&['l']);
+            controller.send(&['l']).unwrap();
 
             assert_eq!(&Direction::E, controller.rover().direction())
         }
@@ -452,7 +459,7 @@ mod tests {
         fn should_ignore_unknown_commands() {
             let mut controller = controller(7, 12, Direction::S);
 
-            controller.send(['a', '🎁']);
+            controller.send(['a', '🎁']).unwrap();
 
             assert_eq!(&Coordinate(7, 12), controller.rover().coord())
         }
@@ -461,7 +468,7 @@ mod tests {
         fn should_ignore_just_commands() {
             let mut controller = controller(7, 12, Direction::S);
 
-            controller.send(['☙', '❣', 'f', 't']);
+            controller.send(['☙', '❣', 'f', 't']).unwrap();
 
             assert_eq!(&Coordinate(7, 11), controller.rover().coord())
         }
@@ -481,7 +488,7 @@ mod tests {
         fn should_wrapping_at_north_bound() {
             let mut controller = controller(3, 2, Direction::N);
 
-            controller.send(&['f', 'f']);
+            controller.send(&['f', 'f']).unwrap();
 
             assert_eq!(&Coordinate(3, 0), controller.rover().coord())
         }
@@ -490,7 +497,7 @@ mod tests {
         fn should_wrapping_at_south_bound() {
             let mut controller = controller(3, 2, Direction::S);
 
-            controller.send(&['f', 'f', 'f']);
+            controller.send(&['f', 'f', 'f']).unwrap();
 
             assert_eq!(&Coordinate(3, 3), controller.rover().coord())
         }
@@ -499,7 +506,7 @@ mod tests {
         fn should_wrapping_at_east_bound() {
             let mut controller = controller(3, 2, Direction::E);
 
-            controller.send(&['f', 'f', 'f']);
+            controller.send(&['f', 'f', 'f']).unwrap();
 
             assert_eq!(&Coordinate(0, 2), controller.rover().coord())
         }
@@ -508,7 +515,7 @@ mod tests {
         fn should_wrapping_at_weast_bound() {
             let mut controller = controller(3, 2, Direction::W);
 
-            controller.send(&['f', 'f', 'f', 'f']);
+            controller.send(&['f', 'f', 'f', 'f']).unwrap();
 
             assert_eq!(&Coordinate(5, 2), controller.rover().coord())
         }
