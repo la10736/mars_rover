@@ -193,7 +193,7 @@ impl std::fmt::Display for Command {
 ///
 /// let mut controller = RoverCharConsole::new(rover);
 ///
-/// controller.send(&['f', 'f', 'b', 'r', 'b', 'b', 'l', 'f', 'f']);
+/// controller.send(&['f', 'f', 'b', 'r', 'b', 'b', 'l', 'f', 'f']).unwrap();
 ///
 /// assert_eq!(&Coordinate(8, 6), controller.rover().coord());
 /// ```
