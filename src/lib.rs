@@ -26,6 +26,28 @@ impl Direction {
             W => E,
         }
     }
+
+    fn right(&self) -> Self {
+        use Direction::*;
+
+        match *self {
+            N => E,
+            S => W,
+            E => S,
+            W => N,
+        }
+    }
+
+    fn left(&self) -> Self {
+        use Direction::*;
+
+        match *self {
+            N => W,
+            S => E,
+            E => N,
+            W => S,
+        }
+    }
 }
 
 impl std::fmt::Display for Direction {
@@ -79,6 +101,8 @@ impl Rover {
         match cmd {
             Forward => { self.coord = move_position(&self.coord, &self.direction) }
             Backward => { self.coord = move_position(&self.coord, &self.direction.reversed()) }
+            Right => { self.direction = self.direction.right() }
+            Left => { self.direction = self.direction.left() }
         }
     }
 }
@@ -87,6 +111,8 @@ impl Rover {
 enum Command {
     Forward,
     Backward,
+    Right,
+    Left,
 }
 
 impl std::fmt::Display for Command {
@@ -96,7 +122,9 @@ impl std::fmt::Display for Command {
         write!(f, "{}",
                match *self {
                    Forward => "Forward",
-                   Backward => "Backward"
+                   Backward => "Backward",
+                   Right => "Right",
+                   Left => "Left",
                }
         )
     }
@@ -114,9 +142,9 @@ impl std::fmt::Display for Command {
 ///
 /// let mut controller = RoverCharConsole::new(rover);
 ///
-/// controller.send(&['f', 'f', 'b', 'f']);
+/// controller.send(&['f', 'f', 'b', 'r', 'b', 'b', 'l', 'f', 'f']);
 ///
-/// assert_eq!(&Coordinate(10, 5), controller.rover().coord());
+/// assert_eq!(&Coordinate(8, 6), controller.rover().coord());
 /// ```
 ///
 pub struct RoverCharConsole {
@@ -136,6 +164,8 @@ impl RoverCharConsole {
             match *c {
                 'f' => self.rover.apply(Forward),
                 'b' => self.rover.apply(Backward),
+                'r' => self.rover.apply(Right),
+                'l' => self.rover.apply(Left),
                 unknown => { warn!("Unknown char command '{}'", unknown)}
             }
         }
@@ -253,6 +283,46 @@ mod tests {
                     assert_eq!(d, rover.direction, "Apply {} should not change direction", cmd);
                 }
         }
+
+        #[test]
+        fn should_rotate_right() {
+            for (d, expected) in
+                vec![
+                    (N, E),
+                    (S, W),
+                    (E, S),
+                    (W, N),
+                ]
+                {
+                    let mut rover = Lander::new().coord(4, 5).direction(d).land();
+                    let cmd = Command::Right;
+
+                    rover.apply(cmd);
+
+                    assert_eq!(expected, rover.direction,
+                               "Wrong direction != {} from [{}] by apply {}", expected, d, cmd);
+                }
+        }
+
+        #[test]
+        fn should_rotate_left() {
+            for (d, expected) in
+                vec![
+                    (N, W),
+                    (S, E),
+                    (E, N),
+                    (W, S),
+                ]
+                {
+                    let mut rover = Lander::new().coord(4, 5).direction(d).land();
+                    let cmd = Command::Left;
+
+                    rover.apply(cmd);
+
+                    assert_eq!(expected, rover.direction,
+                               "Wrong direction != {} from [{}] by apply {}", expected, d, cmd);
+                }
+        }
     }
 
     mod rover_controller {
@@ -281,6 +351,23 @@ mod tests {
             assert_eq!(&Coordinate(7, 13), controller.rover().coord())
         }
 
+        #[test]
+        fn should_send_right_command() {
+            let mut controller = controller(10, 3, Direction::W);
+
+            controller.send(&['r']);
+
+            assert_eq!(&Direction::N, controller.rover().direction())
+        }
+
+        #[test]
+        fn should_send_left_command() {
+            let mut controller = controller(10, 3, Direction::S);
+
+            controller.send(&['l']);
+
+            assert_eq!(&Direction::E, controller.rover().direction())
+        }
         #[test]
         fn should_ignore_unknown_commands() {
             let mut controller = controller(7, 12, Direction::S);
