@@ -81,13 +81,53 @@ fn move_position(coord: &Coordinate, direction: &Direction) -> Coordinate {
     }
 }
 
-#[derive(Debug)]
-pub struct Rover {
-    coord: Coordinate,
-    direction: Direction,
+pub trait World: std::fmt::Debug {
+    fn move_to(&self, coord: &Coordinate, direction: &Direction) -> Coordinate {
+        self.normalize_coord(move_position(coord, direction))
+    }
+
+
+    fn normalize_coord(&self, coord: Coordinate) -> Coordinate;
 }
 
-impl Rover {
+#[derive(Debug)]
+struct InfinityWorld {}
+
+impl World for InfinityWorld {
+    fn normalize_coord(&self, coord: Coordinate) -> Coordinate {
+        coord
+    }
+}
+
+
+static DEFAULT_WORLD: InfinityWorld = InfinityWorld {};
+
+#[derive(Debug)]
+pub struct BoundedWorld {
+    width: Position,
+    height: Position
+}
+
+impl BoundedWorld {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self { width: width as Position, height: height as Position }
+    }
+}
+
+impl World for BoundedWorld {
+    fn normalize_coord(&self, coord: Coordinate) -> Coordinate {
+        Coordinate(coord.0 % self.width, coord.1 % self.height)
+    }
+}
+
+#[derive(Debug)]
+pub struct Rover<'a> {
+    coord: Coordinate,
+    direction: Direction,
+    world: Box<&'a World>,
+}
+
+impl<'a> Rover<'a> {
     pub fn coord(&self) -> &Coordinate {
         &self.coord
     }
@@ -99,8 +139,8 @@ impl Rover {
     fn apply(&mut self, cmd: Command) {
         use Command::*;
         match cmd {
-            Forward => { self.coord = move_position(&self.coord, &self.direction) }
-            Backward => { self.coord = move_position(&self.coord, &self.direction.reversed()) }
+            Forward => { self.coord = self.world.move_to(&self.coord, &self.direction) }
+            Backward => { self.coord = self.world.move_to(&self.coord, &self.direction.reversed()) }
             Right => { self.direction = self.direction.right() }
             Left => { self.direction = self.direction.left() }
         }
@@ -147,12 +187,12 @@ impl std::fmt::Display for Command {
 /// assert_eq!(&Coordinate(8, 6), controller.rover().coord());
 /// ```
 ///
-pub struct RoverCharConsole {
-    rover: Rover
+pub struct RoverCharConsole<'a> {
+    rover: Rover<'a>
 }
 
-impl RoverCharConsole {
-    pub fn new(rover: Rover) -> Self {
+impl<'a> RoverCharConsole<'a> {
+    pub fn new(rover: Rover<'a>) -> Self {
         Self { rover }
     }
 
@@ -166,7 +206,7 @@ impl RoverCharConsole {
                 'b' => self.rover.apply(Backward),
                 'r' => self.rover.apply(Right),
                 'l' => self.rover.apply(Left),
-                unknown => { warn!("Unknown char command '{}'", unknown)}
+                unknown => { warn!("Unknown char command '{}'", unknown) }
             }
         }
     }
@@ -176,14 +216,15 @@ impl RoverCharConsole {
     }
 }
 
-impl From<Rover> for RoverCharConsole {
-    fn from(rover: Rover) -> Self {
+impl<'a> From<Rover<'a>> for RoverCharConsole<'a> {
+    fn from(rover: Rover<'a>) -> Self {
         RoverCharConsole::new(rover)
     }
 }
 
-/// Land the [Rover](struct.Rover.html) to configured [Coordinate](struct.Coordinate.html) and
-/// [Direction](enum.Direction.html)
+/// Land the [Rover](struct.Rover.html) at the [World](trait.World.html) to configured
+/// [Coordinate](struct.Coordinate.html) and [Direction](enum.Direction.html). The default
+/// world is [InfinityWorld](struct.InfinityWorld.html).
 ///
 /// # Examples
 ///
@@ -199,18 +240,48 @@ impl From<Rover> for RoverCharConsole {
 /// assert_eq!(&Direction::N, rover.direction());
 /// ```
 #[derive(Default)]
-pub struct Lander {
+pub struct Lander<'a> {
     coord: Coordinate,
     direction: Direction,
+    world: Box<&'a World>,
 }
 
-impl Lander {
+impl<'a> Default for &'a World {
+    fn default() -> Self {
+        &DEFAULT_WORLD as &World
+    }
+}
+
+impl<'a> Lander<'a> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn land(&self) -> Rover {
-        Rover { coord: self.coord.clone(), direction: self.direction.clone() }
+    pub fn land(&self) -> Rover<'a> {
+        Rover {
+            coord: self.world.normalize_coord(self.coord.clone()),
+            direction: self.direction.clone(),
+            world: self.world.clone(),
+        }
+    }
+
+    /// Select the [World](trait.World.html) where landing.
+    ///
+    /// # Examples
+    /// ```
+    /// use mars_rover::{Lander, Coordinate, BoundedWorld};
+    ///
+    /// let bounded_world = BoundedWorld::new(5, 12);
+    /// let rover = Lander::new()
+    ///         .world(&bounded_world)
+    ///         .coord(12, 23)
+    ///         .land();
+    ///
+    /// assert_eq!(&Coordinate(2, 11), rover.coord());
+    /// ```
+    pub fn world(&mut self, world: &'a World) -> &mut Self {
+        self.world = Box::new(world);
+        self
     }
 
     pub fn coord(&mut self, x: Position, y: Position) -> &mut Self {
@@ -328,7 +399,7 @@ mod tests {
     mod rover_controller {
         use super::*;
 
-        fn controller(x: Position, y: Position, d: Direction) -> RoverCharConsole {
+        fn controller(x: Position, y: Position, d: Direction) -> RoverCharConsole<'static> {
             let rover = Lander::new().coord(x, y).direction(d).land();
             rover.into()
         }
@@ -368,6 +439,7 @@ mod tests {
 
             assert_eq!(&Direction::E, controller.rover().direction())
         }
+
         #[test]
         fn should_ignore_unknown_commands() {
             let mut controller = controller(7, 12, Direction::S);
