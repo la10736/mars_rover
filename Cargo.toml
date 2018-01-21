@@ -5,3 +5,4 @@ authors = ["michele <michele.damico@gmail.com>"]
 
 [dependencies]
 log = "*"
+lazy_static = "*"

@@ -1,5 +1,8 @@
 #[macro_use]
 extern crate log;
+#[allow(unused_imports)]
+#[macro_use]
+extern crate lazy_static;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Direction {
@@ -67,7 +70,7 @@ impl std::fmt::Display for Direction {
 
 pub type Position = i32;
 
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Coordinate(pub Position, pub Position);
 
 fn move_position(coord: &Coordinate, direction: &Direction) -> Coordinate {
@@ -88,6 +91,10 @@ pub trait World: std::fmt::Debug {
 
 
     fn normalize_coord(&self, coord: Coordinate) -> Coordinate;
+
+    fn is_free_cell(&self, _coord: &Coordinate) -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -102,15 +109,22 @@ impl World for InfinityWorld {
 
 static DEFAULT_WORLD: InfinityWorld = InfinityWorld {};
 
+use std::collections::HashSet;
+
 #[derive(Debug)]
 pub struct BoundedWorld {
     width: Position,
-    height: Position
+    height: Position,
+    obstacles: std::collections::HashSet<Coordinate>,
 }
 
 impl BoundedWorld {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width: width as Position, height: height as Position }
+        Self { width: width as Position, height: height as Position, obstacles: HashSet::default() }
+    }
+
+    pub fn add_obstacle(&mut self, coord: Coordinate) {
+        self.obstacles.insert(coord);
     }
 
     #[inline]
@@ -123,8 +137,12 @@ impl World for BoundedWorld {
     fn normalize_coord(&self, coord: Coordinate) -> Coordinate {
         // Rust module is just a remainder
         Coordinate(Self::norm_position(coord.0, self.width),
-                   Self::norm_position(coord.1, self.height)
+                   Self::norm_position(coord.1, self.height),
         )
+    }
+
+    fn is_free_cell(&self, coord: &Coordinate) -> bool {
+        !self.obstacles.contains(coord)
     }
 }
 
@@ -146,14 +164,24 @@ impl<'a> Rover<'a> {
         &self.direction
     }
 
-    fn apply(&mut self, cmd: Command) -> RoverResult{
+    fn apply(&mut self, cmd: Command) -> RoverResult {
         use Command::*;
-        match cmd {
-            Forward => { self.coord = self.world.move_to(&self.coord, &self.direction) }
-            Backward => { self.coord = self.world.move_to(&self.coord, &self.direction.reversed()) }
-            Right => { self.direction = self.direction.right() }
-            Left => { self.direction = self.direction.left() }
+        let pos =
+            match cmd {
+                Forward => self.world.move_to(&self.coord, &self.direction),
+                Backward => self.world.move_to(&self.coord, &self.direction.reversed()),
+                _ => self.coord.clone()
+            };
+        if !self.world.is_free_cell(&pos) {
+            return Err(format!("Cannot move in {:?} on {:?}", pos, self.world))
         }
+        self.coord = pos;
+        self.direction =
+            match cmd {
+                Right => self.direction.right(),
+                Left => self.direction.left(),
+                _ => self.direction
+            };
         Ok(())
     }
 }
@@ -207,7 +235,7 @@ impl<'a> RoverCharConsole<'a> {
         Self { rover }
     }
 
-    pub fn send<C: AsRef<[char]>>(&mut self, commands: C) -> RoverResult{
+    pub fn send<C: AsRef<[char]>>(&mut self, commands: C) -> RoverResult {
         use Command::*;
 
         for c in commands.as_ref() {
@@ -409,6 +437,24 @@ mod tests {
                                "Wrong direction != {} from [{}] by apply {}", expected, d, cmd);
                 }
         }
+
+        #[test]
+        fn report_an_error_if_found_an_obstacle() {
+            let mut world = BoundedWorld::new(10, 8);
+            world.add_obstacle(Coordinate(3, 6));
+
+            let mut rover = Lander::new()
+                .world(&world)
+                .coord(3, 5)
+                .direction(Direction::N)
+                .land();
+
+            assert!(rover.apply(Command::Forward).is_err());
+
+            // Sanity check
+            assert!(rover.apply(Command::Backward).is_ok());
+
+        }
     }
 
     mod rover_controller {
@@ -472,15 +518,58 @@ mod tests {
 
             assert_eq!(&Coordinate(7, 11), controller.rover().coord())
         }
+
+        fn world_controller(world: &World, x: Position, y: Position, d: Direction) -> RoverCharConsole {
+            let rover = Lander::new().world(world).coord(x, y).direction(d).land();
+            rover.into()
+        }
+
+        #[test]
+        fn should_report_an_obstacle_and_stop_the_rover() {
+            let mut world = BoundedWorld::new(5, 6);
+            world.add_obstacle(Coordinate(4, 4));
+
+            let mut controller = world_controller(&world, 3, 3, Direction::N);
+
+            assert!(controller.send(&['f', 'r', 'f', 'f', 'f', 'r']).is_err());
+
+            assert_eq!(&Coordinate(3, 4), controller.rover().coord());
+            assert_eq!(&Direction::E, controller.rover().direction());
+        }
+
+        #[test]
+        fn should_handle_more_obstacles() {
+            let mut world = BoundedWorld::new(7, 8);
+            world.add_obstacle(Coordinate(4, 4));
+            world.add_obstacle(Coordinate(5, 4));
+            world.add_obstacle(Coordinate(5, 3));
+
+            let mut controller = world_controller(&world, 3, 3, Direction::E);
+
+            assert!(controller.send(&['f', 'f', 'f']).is_err());
+
+            assert_eq!(&Coordinate(4, 3), controller.rover().coord());
+
+            assert!(controller.send(&['l', 'f', 'f']).is_err());
+
+            assert_eq!(&Coordinate(4, 3), controller.rover().coord());
+
+            assert!(controller.send(&['b', 'b']).is_ok());
+            assert_eq!(&Coordinate(4, 1), controller.rover().coord());
+        }
     }
 
     mod bounded_world {
         use super::*;
-
-        static BOUNDED_WORLD: BoundedWorld = BoundedWorld {width: 6, height: 4};
+        lazy_static! {
+            static ref BOUNDED_WORLD: BoundedWorld = {
+                let b = BoundedWorld::new(6, 4);
+                b
+            };
+        }
 
         fn controller(x: Position, y: Position, d: Direction) -> RoverCharConsole<'static> {
-            let rover = Lander::new().world(&BOUNDED_WORLD).coord(x, y).direction(d).land();
+            let rover = Lander::new().world(&*BOUNDED_WORLD).coord(x, y).direction(d).land();
             rover.into()
         }
 
@@ -512,7 +601,7 @@ mod tests {
         }
 
         #[test]
-        fn should_wrapping_at_weast_bound() {
+        fn should_wrapping_at_west_bound() {
             let mut controller = controller(3, 2, Direction::W);
 
             controller.send(&['f', 'f', 'f', 'f']).unwrap();
