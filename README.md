@@ -10,3 +10,17 @@ Requirements
 - [ ] Implement commands that turn the rover left/right (l,r).
 - [ ] Implement wrapping from one edge of the grid to another. (planets are spheres after all)
 - [ ] Implement obstacle detection before each move to a new square. If a given sequence of commands encounters an obstacle, the rover moves up to the last possible point, aborts the sequence and reports the obstacle.
+
+
+# About Rust
+
+To compile and run project's tests you should have a Rust toolchain installed. Use [rustup](https://www.rustup.rs/) to
+install toolchain and then `cargo` to compile, run test and produce docs (very limited).
+
+
+By the toolchain installed use
+
+* `cargo test` to run both unit test and doctest (that works also as integration tests)
+* `cargo docs` to create the (limited) Documentation at `target/doc/mars_rover/index.html`
+
+Let me known if you have any issue...
