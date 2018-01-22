@@ -164,15 +164,22 @@ impl<'a> Rover<'a> {
         &self.direction
     }
 
-    fn apply(&mut self, cmd: Command) -> RoverResult {
-        use Command::*;
-        match cmd {
-            Forward => {self.coord = self.try_move(self.direction)?;},
-            Backward => {self.coord = self.try_move(self.direction.reversed())?;},
-            Right => {self.direction = self.direction.right()},
-            Left => {self.direction = self.direction.left()},
-        };
+    fn forward(&mut self) -> RoverResult {
+        self.coord = self.try_move(self.direction)?;
         Ok(())
+    }
+
+    fn backward(&mut self) -> RoverResult {
+        self.coord = self.try_move(self.direction.reversed())?;
+        Ok(())
+    }
+
+    fn right(&mut self) {
+        self.direction = self.direction.right()
+    }
+
+    fn left(&mut self) {
+        self.direction = self.direction.left()
     }
 
     fn try_move(&self, direction: Direction) -> Result<Coordinate, String> {
@@ -181,29 +188,6 @@ impl<'a> Rover<'a> {
             true => Ok(coord),
             false => Err(format!("Cannot move in {:?} on {:?}", coord, self.world))
         }
-    }
-}
-
-#[derive(Copy, Clone)]
-enum Command {
-    Forward,
-    Backward,
-    Right,
-    Left,
-}
-
-impl std::fmt::Display for Command {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use Command::*;
-
-        write!(f, "{}",
-               match *self {
-                   Forward => "Forward",
-                   Backward => "Backward",
-                   Right => "Right",
-                   Left => "Left",
-               }
-        )
     }
 }
 
@@ -234,20 +218,18 @@ impl<'a> RoverCharConsole<'a> {
     }
 
     pub fn send<C: AsRef<[char]>>(&mut self, commands: C) -> RoverResult {
-        use Command::*;
 
         for c in commands.as_ref() {
             info!("Apply char command {} to rover {:?}", c, self.rover);
             match *c {
-                'f' => self.rover.apply(Forward),
-                'b' => self.rover.apply(Backward),
-                'r' => self.rover.apply(Right),
-                'l' => self.rover.apply(Left),
+                'f' => self.rover.forward()?,
+                'b' => self.rover.backward()?,
+                'r' => self.rover.right(),
+                'l' => self.rover.left(),
                 unknown => {
                     warn!("Unknown char command '{}'", unknown);
-                    Ok(())
                 }
-            }?;
+            };
         }
         Ok(())
     }
@@ -364,13 +346,12 @@ mod tests {
                 ]
                 {
                     let mut rover = Lander::new().coord(p.0, p.1).direction(d).land();
-                    let cmd = Command::Forward;
 
-                    rover.apply(cmd).unwrap();
+                    rover.forward().unwrap();
 
                     assert_eq!(Coordinate::from(expected), rover.coord,
-                               "Wrong destination != {:?} from [{:?}, {}] by apply {}", expected, p, d, cmd);
-                    assert_eq!(d, rover.direction, "Apply {} should not change direction", cmd);
+                               "Wrong destination != {:?} from [{:?}, {}] by move forward", expected, p, d);
+                    assert_eq!(d, rover.direction, "Move forward should not change direction");
                 }
         }
 
@@ -386,13 +367,12 @@ mod tests {
                 ]
                 {
                     let mut rover = Lander::new().coord(p.0, p.1).direction(d).land();
-                    let cmd = Command::Backward;
 
-                    rover.apply(cmd).unwrap();
+                    rover.backward().unwrap();
 
                     assert_eq!(Coordinate::from(expected), rover.coord,
-                               "Wrong destination != {:?} from [{:?}, {}] by apply {}", expected, p, d, cmd);
-                    assert_eq!(d, rover.direction, "Apply {} should not change direction", cmd);
+                               "Wrong destination != {:?} from [{:?}, {}] by move backward", expected, p, d);
+                    assert_eq!(d, rover.direction, "Move backward should not change direction");
                 }
         }
 
@@ -407,12 +387,11 @@ mod tests {
                 ]
                 {
                     let mut rover = Lander::new().coord(4, 5).direction(d).land();
-                    let cmd = Command::Right;
 
-                    rover.apply(cmd).unwrap();
+                    rover.right();
 
                     assert_eq!(expected, rover.direction,
-                               "Wrong direction != {} from [{}] by apply {}", expected, d, cmd);
+                               "Wrong direction != {} from [{}] to rotate right", expected, d);
                 }
         }
 
@@ -427,12 +406,11 @@ mod tests {
                 ]
                 {
                     let mut rover = Lander::new().coord(4, 5).direction(d).land();
-                    let cmd = Command::Left;
 
-                    rover.apply(cmd).unwrap();
+                    rover.left();
 
                     assert_eq!(expected, rover.direction,
-                               "Wrong direction != {} from [{}] by apply {}", expected, d, cmd);
+                               "Wrong direction != {} from [{}] by rotate left", expected, d);
                 }
         }
 
@@ -447,11 +425,10 @@ mod tests {
                 .direction(Direction::N)
                 .land();
 
-            assert!(rover.apply(Command::Forward).is_err());
+            assert!(rover.forward().is_err());
 
             // Sanity check
-            assert!(rover.apply(Command::Backward).is_ok());
-
+            assert!(rover.backward().is_ok());
         }
     }
 
